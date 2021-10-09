@@ -11,8 +11,8 @@ class GenericShimmer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
-      baseColor: Colors.grey,
-      highlightColor: Colors.grey[400],
+      baseColor: Colors.black87,
+      highlightColor: Colors.black45,
       enabled: true,
       loop: 3,
       child: Container(

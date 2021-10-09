@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:news/database.dart';
 import 'package:news/model/article.dart';
@@ -10,6 +11,7 @@ import 'package:sembast/sembast.dart';
 import 'package:collection/collection.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:pull_to_refresh/pull_to_refresh.dart';
 
 class HomePage extends StatefulWidget {
   HomePage({Key key}) : super(key: key);
@@ -24,6 +26,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   List<Articles> articleList;
   List<Articles> offlineArticleList = [];
   var _scrollController = ScrollController();
+  RefreshController _refreshController =
+      RefreshController(initialRefresh: false);
   @override
   void initState() {
     super.initState();
@@ -33,6 +37,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           duration: Duration(milliseconds: 300),
           curve: Curves.fastLinearToSlowEaseIn);
     });
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
+      systemNavigationBarColor: Colors.black,
+    ));
   }
 
   fetchArticles() async {
@@ -64,6 +71,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               List.of(NewsApiRepsonse.fromJson(response.body).articles);
         });
       }
+      _refreshController.refreshCompleted();
     } catch (e) {
       var db = await NewsDatabase.createorGetDatabase();
       var offlineList = await store.record('articleList').get(db) as List;
@@ -77,55 +85,82 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           articleList = List.of(offlineArticleList);
         });
       }
+      _refreshController.refreshCompleted();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-        child: Scaffold(
-            backgroundColor: Color.fromRGBO(70, 70, 70, 1),
-            appBar: AppBar(
-                centerTitle: true,
-                elevation: 0,
-                backgroundColor: Colors.black,
-                title: Text(
-                  "Headlines",
-                  style: Theme.of(context).textTheme.headline1,
-                ),
-                actions: [
-                  ValueListenableBuilder(
-                      valueListenable: isNewToOld,
-                      builder: (ctx, value, _) {
-                        return IconButton(
-                            iconSize: 30,
-                            icon: Icon(value
-                                ? Icons.arrow_drop_down
-                                : Icons.arrow_drop_up),
-                            color: Colors.white,
-                            onPressed: () {
-                              {
-                                toggleTiming();
-                              }
-                            });
-                      })
-                ]),
-            body: articleList == null
-                ? ListView.builder(itemBuilder: (ctx, index) {
-                    return Container(
-                        margin: EdgeInsets.only(top: 20, left: 16, right: 16),
-                        child: GenericShimmer(
-                          height: 200,
-                          radius: 4,
-                        ));
+      child: Scaffold(
+        backgroundColor: Color.fromRGBO(70, 70, 70, 1),
+        appBar: AppBar(
+            centerTitle: true,
+            elevation: 0,
+            backgroundColor: Colors.black,
+            title: Text(
+              "Headlines",
+              style: Theme.of(context).textTheme.headline1,
+            ),
+            actions: [
+              ValueListenableBuilder(
+                  valueListenable: isNewToOld,
+                  builder: (ctx, value, _) {
+                    return IconButton(
+                        iconSize: 30,
+                        icon: Icon(value
+                            ? Icons.arrow_drop_down
+                            : Icons.arrow_drop_up),
+                        color: Colors.white,
+                        onPressed: () {
+                          {
+                            toggleTiming();
+                          }
+                        });
                   })
-                : ListView.builder(
-                    controller: _scrollController,
-                    itemBuilder: (ctx, index) {
-                      return articleWidget(articleList[index]);
-                    },
-                    itemCount: articleList.length,
-                  )));
+            ]),
+        body: articleList == null
+            ? ListView.builder(itemBuilder: (ctx, index) {
+                return Container(
+                    margin: EdgeInsets.only(top: 20, left: 16, right: 16),
+                    child: GenericShimmer(
+                      height: 200,
+                      radius: 4,
+                    ));
+              })
+            : SmartRefresher(
+                controller: _refreshController,
+                onRefresh: _onRefresh,
+                enablePullDown: true,
+                header: CustomHeader(
+                  refreshStyle: RefreshStyle.Behind,
+                  height: 70,
+                  builder: (ctx, status) {
+                    return Container(
+                      height: 70,
+                      alignment: Alignment.topCenter,
+                      child: SpinKitFadingCircle(
+                        color: Colors.white,
+                        duration: Duration(milliseconds: 700),
+                        size: 30.0,
+                      ),
+                    );
+                  },
+                ),
+                child: ListView.builder(
+                  controller: _scrollController,
+                  itemBuilder: (ctx, index) {
+                    return articleWidget(articleList[index]);
+                  },
+                  itemCount: articleList.length,
+                ),
+              ),
+      ),
+    );
+  }
+
+  _onRefresh() {
+    fetchArticles();
   }
 
   toggleTiming() {
