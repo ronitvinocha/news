@@ -160,6 +160,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   _onRefresh() {
+    isNewToOld.value = true;
     fetchArticles();
   }
 
